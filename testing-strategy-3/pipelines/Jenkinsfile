@@ -4,8 +4,10 @@ pipeline {
     tools {nodejs "NodeJS"}
 
     environment {
-        PROJECT_PATH="${env.JENKINS_HOME}/workspace/OnBoardingPart3/testing-strategy-3"
+        PROJECT_PATH="${env.JENKINS_HOME}/workspace/testing-strategy-3/testing-strategy-3"
         SCRIPTS_PATH="${PROJECT_PATH}/scripts"
+        REPORT_PATH="${E2E_PATH}/reports"
+        E2E_WEB_PATH="${PROJECT_PATH}/e2e-web"
         DEV="dev"
         ALPHA="alpha"
         PREPROD="preprod"
@@ -14,29 +16,90 @@ pipeline {
 
     stages {
         stage('Build') {
-           steps {
+            steps {
                 dir("${SCRIPTS_PATH}") {
                     sh """
-                    echo "Build"
+                    ./application-management.sh build "${DEV}" 
+                    ./application-management.sh start "${DEV}" &
                     """
                 }
             }
         }
-        stage('Test environment DEV') {
+        stage('Prepare test environment on DEV') {
             steps {
                 dir("${SCRIPTS_PATH}") {
-                   sh """
-                    echo "Test"
+                    sh """
+                    echo "$SCRIPTS_PATH"
+                    ./setup-node.sh run "${DEV}"
                     """
+                }
+            }
+            post{
+                  success{
+                      echo "========TEST DEV SUCCESS========"
+                  }
+                  failure{
+                      echo "========TEST DEV FAILURE========"
+                      error("========TEST DEV FAILURE========")
+                  }
+              }
+        }
+        stage('Prepare tests environment on ALPHA') {
+            steps {
+                dir("${SCRIPTS_PATH}") {
+                    sh """
+                    ./setup-node.sh run "${ALPHA}"
+                    """
+                }
+            }
+            post{
+                success{
+                    echo "========TEST ALPHA SUCCESS========"
+                }
+                failure{
+                    echo "========TEST ALPHA FAILURE========"
+                    error("========TEST ALPHA FAILURE========")
+                }
+            }
+        }
+        stage('Prepare tests environment on PREPROD') {
+            steps {
+                dir("${SCRIPTS_PATH}") {
+                    sh """
+                    ./load-testing.sh test "${PREPROD}"
+                    ./audit.sh test "${PREPROD}"
+                    """
+                }
+            }
+            post{
+                success{
+                    echo "========TEST DEV SUCCESS========"
+                }
+                failure{
+                    echo "========TEST DEV FAILURE========"
+                    error("========TEST DEV FAILURE========")
                 }
             }
         }
         stage('Deployment') {
             steps {
                 dir("${SCRIPTS_PATH}") {
-                   sh """
-                    echo "Deployment"
+                    sh """
                     """
+                }
+            }
+            post{
+                always {  
+                    echo "Stop web"
+                    sh "kill \$(lsof -t -i :3000)"
+
+                }
+                success{
+                    echo "========PROD SUCCESS========"
+                }
+                failure{
+                    echo "========PROD FAILURE========"
+                    error("========PROD FAILURE========")
                 }
             }
         }
